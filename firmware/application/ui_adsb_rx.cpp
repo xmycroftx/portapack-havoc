@@ -70,13 +70,20 @@ void RecentEntriesTable<AircraftRecentEntries>::draw(
 		painter.draw_bitmap(target_rect.location() + Point(15 * 8, 0), bitmap_target, target_color, style.background);
 }
 
+//placeholder, will add more useful values per frame in logline
+void ADSBLogger::log_icao(const uint32_t ICAO_address) {
+	rtc::RTC datetime;
+	rtcGetTime(&RTCD1, &datetime);
+	std::string entry = "ICAO : " + to_string_hex(ICAO_address, 6);
+	log_file.write_entry(datetime,entry);
+}
+
 void ADSBRxDetailsView::focus() {
 	button_see_map.focus();
 }
 
 void ADSBRxDetailsView::update(const AircraftRecentEntry& entry) {
 	entry_copy = entry;
-	
 	uint32_t age = entry_copy.age;
 	
 	if (age < 60)
@@ -120,9 +127,9 @@ ADSBRxDetailsView::ADSBRxDetailsView(
 		&text_frame_pos_odd,
 		&button_see_map
 	});
-	
+	std::unique_ptr<ADSBLogger> logger { };
 	update(entry_copy);
-	
+
 	// The following won't (shouldn't !) change for a given airborne aircraft
 	// Try getting the airline's name from airlines.db
 	auto result = db_file.open("ADSB/airlines.db");
@@ -187,19 +194,26 @@ void ADSBRxView::on_frame(const ADSBFrameMessage * message) {
 	std::string str_timestamp;
 	std::string callsign;
 	std::string str_info;
-	
+
 	auto frame = message->frame;
 	uint32_t ICAO_address = frame.get_ICAO_address();
 	
 	if (frame.check_CRC() && frame.get_ICAO_address()) {
 		rtcGetTime(&RTCD1, &datetime);
 		auto& entry = ::on_packet(recent, ICAO_address);
-		
 		frame.set_rx_timestamp(datetime.minute() * 60 + datetime.second());
 		entry.reset_age();
 		str_timestamp = to_string_datetime(datetime, HMS);
 		entry.set_time_string(str_timestamp);
-		
+
+        logger = std::make_unique<ADSBLogger>();
+        if( logger ) {
+                logger->append(u"adsb.txt");
+                // will log each frame in format:
+                // 20171103100227 ICAO : 003039
+                logger->log_icao(ICAO_address);
+        }
+
 		entry.inc_hit();
 		
 		if (frame.get_DF() == DF_ADSB) {
@@ -243,7 +257,6 @@ void ADSBRxView::on_tick_second() {
 
 ADSBRxView::ADSBRxView(NavigationView& nav) {
 	baseband::run_image(portapack::spi_flash::image_tag_adsb_rx);
-
 	add_children({
 		&labels,
 		&rssi,
