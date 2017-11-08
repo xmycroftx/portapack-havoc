@@ -106,7 +106,7 @@ public:
 	Optional<File::Error> append(const std::filesystem::path& filename) {
 		return log_file.append(filename);
 	}
-	void log_icao(const uint32_t ICAO_address);
+	void log_str(std::string& logline);
 
 private:
 	LogFile log_file { };

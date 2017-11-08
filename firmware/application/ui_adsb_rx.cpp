@@ -70,12 +70,10 @@ void RecentEntriesTable<AircraftRecentEntries>::draw(
 		painter.draw_bitmap(target_rect.location() + Point(15 * 8, 0), bitmap_target, target_color, style.background);
 }
 
-//placeholder, will add more useful values per frame in logline
-void ADSBLogger::log_icao(const uint32_t ICAO_address) {
+void ADSBLogger::log_str(std::string& logline) {
 	rtc::RTC datetime;
 	rtcGetTime(&RTCD1, &datetime);
-	std::string entry = "ICAO : " + to_string_hex(ICAO_address, 6);
-	log_file.write_entry(datetime,entry);
+	log_file.write_entry(datetime,logline);
 }
 
 void ADSBRxDetailsView::focus() {
@@ -194,6 +192,7 @@ void ADSBRxView::on_frame(const ADSBFrameMessage * message) {
 	std::string str_timestamp;
 	std::string callsign;
 	std::string str_info;
+	std::string logentry;
 
 	auto frame = message->frame;
 	uint32_t ICAO_address = frame.get_ICAO_address();
@@ -206,23 +205,17 @@ void ADSBRxView::on_frame(const ADSBFrameMessage * message) {
 		str_timestamp = to_string_datetime(datetime, HMS);
 		entry.set_time_string(str_timestamp);
 
-        logger = std::make_unique<ADSBLogger>();
-        if( logger ) {
-                logger->append(u"adsb.txt");
-                // will log each frame in format:
-                // 20171103100227 ICAO : 003039
-                logger->log_icao(ICAO_address);
-        }
-
 		entry.inc_hit();
-		
-		if (frame.get_DF() == DF_ADSB) {
+		logentry+=to_string_hex_array(frame.get_raw_data(), 14)+" ";
+		logentry+="ICAO:"+to_string_hex(ICAO_address, 6) +" ";
+	if (frame.get_DF() == DF_ADSB) {
 			uint8_t msg_type = frame.get_msg_type();
 			uint8_t * raw_data = frame.get_raw_data();
 			
 			if ((msg_type >= 1) && (msg_type <= 4)) {
 				callsign = decode_frame_id(frame);
 				entry.set_callsign(callsign);
+				logentry+=callsign+" ";
 			} else if ((msg_type >= 9) && (msg_type <= 18)) {
 				entry.set_frame_pos(frame, raw_data[6] & 4);
 				
@@ -234,14 +227,22 @@ void ADSBRxView::on_frame(const ADSBFrameMessage * message) {
 						"." + to_string_dec_int((int)(entry.pos.longitude * 1000) % 100);
 					
 					entry.set_info_string(str_info);
-					
+					logentry+=str_info+ " ";
+
 					if (send_updates)
 						details_view->update(entry);
 				}
 			}
 		}
-		
-		recent_entries_view.set_dirty();
+		recent_entries_view.set_dirty(); 
+		logger = std::make_unique<ADSBLogger>();
+        if( logger ) {
+                logger->append(u"adsb.txt");
+                // will log each frame in format:
+                // 20171103100227 8DADBEEFDEADBEEFDEADBEEFDEADBEEF ICAO:nnnnnn callsign Alt:nnnnnn Latnnn.nn Lonnnn.nn
+				logger->log_str(logentry);
+        }
+
 	}
 }
 
