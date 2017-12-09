@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2015 Jared Boone, ShareBrained Technology, Inc.
- *
+ * Copyright (C) 2017 Furrtek
+ * 
  * This file is part of PortaPack.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -19,54 +20,21 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __BASEBAND_PACKET_H__
-#define __BASEBAND_PACKET_H__
+#include "tone_gen.hpp"
+#include "sine_table_int8.hpp"
 
-#include "baseband.hpp"
+void ToneGen::configure(const uint32_t delta, const float tone_mix_weight) {
+	delta_ = delta;
+	tone_mix_weight_ = tone_mix_weight;
+	input_mix_weight_ = 1.0 - tone_mix_weight;
+}
 
-#include <cstddef>
-#include <bitset>
-
-namespace baseband {
-
-class Packet {
-public:
-	void set_timestamp(const Timestamp& value) {
-		timestamp_ = value;
-	}
+int32_t ToneGen::process(const int32_t sample_in) {
+	if (!delta_)
+		return sample_in;
 	
-	Timestamp timestamp() const {
-		return timestamp_;
-	}
-
-	void add(const bool symbol) {
-		if( count < capacity() ) {
-			data[count++] = symbol;
-		}
-	}
-
-	uint_fast8_t operator[](const size_t index) const {
-		return (index < size()) ? data[index] : 0;
-	}
-
-	size_t size() const {
-		return count;
-	}
-
-	size_t capacity() const {
-		return data.size();
-	}
-
-	void clear() {
-		count = 0;
-	}
-
-private:
-	std::bitset<2560> data { };
-	Timestamp timestamp_ { };
-	size_t count { 0 };
-};
-
-} /* namespace baseband */
-
-#endif/*__BASEBAND_PACKET_H__*/
+	int32_t tone_sample = sine_table_i8[(tone_phase_ & 0xFF000000U) >> 24];
+	tone_phase_ += delta_;
+	
+	return (sample_in * input_mix_weight_) + (tone_sample * tone_mix_weight_);
+}

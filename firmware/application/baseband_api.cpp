@@ -153,13 +153,13 @@ void kill_afsk() {
 }
 
 void set_audiotx_data(const uint32_t divider, const uint32_t bw, const uint32_t gain_x10,
-					const bool ctcss_enabled, const uint32_t ctcss_phase_inc) {
+					const uint32_t tone_key_delta, const float tone_key_mix_weight) {
 	const AudioTXConfigMessage message {
 		divider,
 		bw,
 		gain_x10,
-		ctcss_phase_inc,
-		ctcss_enabled
+		tone_key_delta,
+		tone_key_mix_weight
 	};
 	send_message(&message);
 }
@@ -171,10 +171,9 @@ void set_fifo_data(const int8_t * data) {
 	send_message(&message);
 }
 
-void set_pwmrssi(int32_t avg, bool enabled) {
-	const PWMRSSIConfigureMessage message {
+void set_pitch_rssi(int32_t avg, bool enabled) {
+	const PitchRSSIConfigureMessage message {
 		enabled,
-		1000,	// 1kHz
 		avg
 	};
 	send_message(&message);	

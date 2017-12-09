@@ -26,8 +26,9 @@
 
 #include "lfsr_random.hpp"
 #include "string_format.hpp"
+#include "tonesets.hpp"
 
-using namespace ctcss;
+using namespace tonekey;
 using namespace portapack;
 
 namespace ui {
@@ -95,8 +96,7 @@ void SoundBoardView::on_tuning_frequency_changed(rf::Frequency f) {
 }
 
 void SoundBoardView::play_sound(uint16_t id) {
-	uint32_t ctcss_index;
-	bool ctcss_enabled;
+	uint32_t tone_key_index;
 	uint32_t divider;
 
 	if (sounds[id].size == 0) return;
@@ -119,22 +119,16 @@ void SoundBoardView::play_sound(uint16_t id) {
 	transmitter_model.set_baseband_bandwidth(1750000);
 	transmitter_model.enable();
 	
-	ctcss_index = options_ctcss.selected_index();
-	
-	if (ctcss_index) {
-		ctcss_enabled = true;
-		ctcss_index--;
-	} else
-		ctcss_enabled = false;
+	tone_key_index = options_tone_key.selected_index();
 	
 	divider = (1536000 / sounds[id].sample_rate) - 1;
 	
 	baseband::set_audiotx_data(
 		divider,
 		number_bw.value() * 1000,
-		1,
-		ctcss_enabled,
-		(uint32_t)((ctcss_tones[ctcss_index].frequency / 1536000.0) * 0xFFFFFFFFULL)
+		10,
+		TONES_F2D(tone_key_frequency(tone_key_index)),
+		0.2		// 20% mix
 	);
 }
 
@@ -230,7 +224,7 @@ SoundBoardView::SoundBoardView(
 		&field_frequency,
 		&number_bw,
 		&text_kHz,
-		&options_ctcss,
+		&options_tone_key,
 		&text_title,
 		&text_page,
 		&text_duration,
@@ -240,8 +234,8 @@ SoundBoardView::SoundBoardView(
 		&button_exit
 	});
 
-	ctcss_populate(options_ctcss);
-	options_ctcss.set_selected_index(0);
+	tone_keys_populate(options_tone_key);
+	options_tone_key.set_selected_index(0);
 
 	const auto button_fn = [this](Button& button) {
 		tx_mode = NORMAL;

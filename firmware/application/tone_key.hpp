@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2015 Jared Boone, ShareBrained Technology, Inc.
- * Copyright (C) 2016 Furrtek
+ * Copyright (C) 2017 Furrtek
  *
  * This file is part of PortaPack.
  *
@@ -20,28 +20,23 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __CTCSS_H_
-#define __CTCSS_H_
+#ifndef __TONE_KEY_H_
+#define __TONE_KEY_H_
 
 #include "ui.hpp"
 #include "ui_widget.hpp"
 
 using namespace ui;
 
-#define CTCSS_TONES_NB 50
+namespace tonekey {
 
-namespace ctcss {
-	
-struct ctcss_tone {
-	char PL_code[3];
-	uint16_t num_code;
-	float frequency;
-};
+using tone_key_t = std::vector<std::pair<std::string, float>>;
 
-extern const ctcss_tone ctcss_tones[CTCSS_TONES_NB];
+extern const tone_key_t tone_keys;
 
-void ctcss_populate(OptionsField& field);
+void tone_keys_populate(OptionsField& field);
+float tone_key_frequency(const uint32_t index);
 
 }
 
-#endif/*__CTCSS_H_*/
+#endif/*__TONE_KEY_H_*/

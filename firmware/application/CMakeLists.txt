@@ -151,7 +151,7 @@ set(CPPSRC
 	modems.cpp
 	audio.cpp
 	${COMMON}/bch_code.cpp
-	ctcss.cpp
+	tone_key.cpp
 	de_bruijn.cpp
 	encoder.cpp
 	emu_cc1101.cpp
@@ -195,7 +195,7 @@ set(CPPSRC
 	ui_rds.cpp
 	ui_receiver.cpp
 	ui_record_view.cpp
-	ui_replay_view.cpp
+	# ui_replay_view.cpp
 	ui_rssi.cpp
 	ui_scanner.cpp
 	# ui_script.cpp

@@ -21,64 +21,80 @@
  */
 
 #include "proc_replay.hpp"
+#include "sine_table_int8.hpp"
+#include "portapack_shared_memory.hpp"
 
 #include "event_m4.hpp"
 
 #include "utility.hpp"
 
 ReplayProcessor::ReplayProcessor() {
-	// TODO: Interpolation filter needed !
+	channel_filter_pass_f = taps_200k_decim_1.pass_frequency_normalized * 1000000;	// 162760.416666667
+	channel_filter_stop_f = taps_200k_decim_1.stop_frequency_normalized * 1000000;	// 337239.583333333
 	
-	/*spectrum_interval_samples = baseband_fs / spectrum_rate_hz;
+	spectrum_interval_samples = baseband_fs / spectrum_rate_hz;
 	spectrum_samples = 0;
 
-	channel_spectrum.set_decimation_factor(1);*/
+	channel_spectrum.set_decimation_factor(1);
 	
+	configured = false;
 }
 
 void ReplayProcessor::execute(const buffer_c8_t& buffer) {
 	/* 4MHz, 2048 samples */
-
-	size_t pos = 0;
+	
+	if (!configured) return;
 	
 	// File data is in C16 format, we need C8
 	// File samplerate is 500kHz, we're at 4MHz
-	// iq_buffer can only be 512 samples (RAM limitation)
-	// For a full 2048-sample C8 buffer, we need:
+	// iq_buffer can only be 512 C16 samples (RAM limitation)
+	// To fill up the 2048-sample C8 buffer, we need:
 	// 2048 samples * 2 bytes per sample = 4096 bytes
-	// Since we're oversampling by 4M/500k = 8, we only need 2048/8 = 256 samples from the file
+	// Since we're oversampling by 4M/500k = 8, we only need 2048/8 = 256 samples from the file and duplicate them 8 times each
 	// So 256 * 4 bytes per sample (C16) = 1024 bytes from the file
 	if( stream ) {
-		const size_t bytes_to_read = sizeof(*buffer.p) * 2 * (buffer.count / 8);	// *2 (C16), /8 (oversampling)
-		const auto result = stream->read(iq_buffer.p, bytes_to_read);
+		const size_t bytes_to_read = sizeof(*buffer.p) * 2 * (buffer.count / 8);	// *2 (C16), /8 (oversampling) should be == 1024
+		bytes_read += stream->read(iq_buffer.p, bytes_to_read);
 	}
-
-	//feed_channel_stats(channel);
 	
-	// Zero-stuff
+	// Fill and "stretch"
 	for (size_t i = 0; i < buffer.count; i++) {
-		if (i & 3)
-			buffer.p[i] = { 0, 0 };
-		else
-			buffer.p[i] = { iq_buffer.p[i >> 3].real() >> 8, iq_buffer.p[i >> 3].imag() >> 8 };
+		if (i & 3) {
+			buffer.p[i] = buffer.p[i - 1];
+		} else {
+			auto re_out = iq_buffer.p[i >> 3].real() >> 8;
+			auto im_out = iq_buffer.p[i >> 3].imag() >> 8;
+			buffer.p[i] = { (int8_t)re_out, (int8_t)im_out };
+		}
 	}
 	
-	/*spectrum_samples += channel.count;
+	spectrum_samples += buffer.count;
 	if( spectrum_samples >= spectrum_interval_samples ) {
 		spectrum_samples -= spectrum_interval_samples;
-		channel_spectrum.feed(channel, channel_filter_pass_f, channel_filter_stop_f);
-	}*/
+		channel_spectrum.feed(iq_buffer, channel_filter_pass_f, channel_filter_stop_f);
+		
+		txprogress_message.progress = bytes_read;	// Inform UI about progress
+		txprogress_message.done = false;
+		shared_memory.application_queue.push(txprogress_message);
+	}
 }
 
 void ReplayProcessor::on_message(const Message* const message) {
 	switch(message->id) {
-	/*case Message::ID::UpdateSpectrum:
+	case Message::ID::UpdateSpectrum:
 	case Message::ID::SpectrumStreamingConfig:
 		channel_spectrum.on_message(message);
-		break;*/
+		break;
 
 	case Message::ID::ReplayConfig:
+		configured = false;
+		bytes_read = 0;
 		replay_config(*reinterpret_cast<const ReplayConfigMessage*>(message));
+		break;
+		
+	// App has prefilled the buffers, we're ready to go now
+	case Message::ID::FIFOData:
+		configured = true;
 		break;
 
 	default:
@@ -89,6 +105,9 @@ void ReplayProcessor::on_message(const Message* const message) {
 void ReplayProcessor::replay_config(const ReplayConfigMessage& message) {
 	if( message.config ) {
 		stream = std::make_unique<StreamOutput>(message.config);
+		
+		// Tell application that the buffers and FIFO pointers are ready, prefill
+		shared_memory.application_queue.push(sig_message);
 	} else {
 		stream.reset();
 	}

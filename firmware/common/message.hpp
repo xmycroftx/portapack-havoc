@@ -80,7 +80,7 @@ public:
 		
 		TonesConfigure = 32,
 		AFSKTxConfigure = 33,
-		PWMRSSIConfigure = 34,
+		PitchRSSIConfigure = 34,
 		OOKConfigure = 35,
 		RDSConfigure = 36,
 		AudioTXConfig = 37,
@@ -103,6 +103,7 @@ public:
 		FIFOData = 61,
 		
 		AudioLevelReport = 70,
+		CodedSquelch = 71,
 		MAX
 	};
 
@@ -351,6 +352,18 @@ public:
 	uint32_t value;
 };
 
+class CodedSquelchMessage : public Message {
+public:
+	constexpr CodedSquelchMessage(
+		const uint32_t value
+	) : Message { ID::CodedSquelch },
+		value { value }
+	{
+	}
+	
+	uint32_t value;
+};
+
 class ShutdownMessage : public Message {
 public:
 	constexpr ShutdownMessage(
@@ -528,7 +541,7 @@ public:
 	
 	size_t read(void* p, const size_t count) {
 		const auto copy_size = std::min(used_, count);
-		memcpy(p, &data_[used_ - copy_size], copy_size);
+		memcpy(p, &data_[capacity_ - used_], copy_size);
 		used_ -= copy_size;
 		return copy_size;
 	}
@@ -667,22 +680,19 @@ public:
 	const bool trigger_word;
 };
 
-class PWMRSSIConfigureMessage : public Message {
+class PitchRSSIConfigureMessage : public Message {
 public:
-	constexpr PWMRSSIConfigureMessage(
+	constexpr PitchRSSIConfigureMessage(
 		const bool enabled,
-		const uint32_t synth_div,
-		const int32_t avg
-	) : Message { ID::PWMRSSIConfigure },
+		const int32_t rssi
+	) : Message { ID::PitchRSSIConfigure },
 		enabled(enabled),
-		synth_div(synth_div),
-		avg(avg)
+		rssi(rssi)
 	{
 	}
 	
 	const bool enabled;
-	const uint32_t synth_div;
-	const int32_t avg;
+	const int32_t rssi;
 };
 
 class TonesConfigureMessage : public Message {
@@ -748,22 +758,22 @@ public:
 		const uint32_t divider,
 		const uint32_t fm_delta,
 		const uint32_t gain_x10,
-		const uint32_t ctcss_phase_inc,
-		const bool ctcss_enabled
+		const uint32_t tone_key_delta,
+		const float tone_key_mix_weight
 	) : Message { ID::AudioTXConfig },
 		divider(divider),
 		fm_delta(fm_delta),
 		gain_x10(gain_x10),
-		ctcss_phase_inc(ctcss_phase_inc),
-		ctcss_enabled(ctcss_enabled)
+		tone_key_delta(tone_key_delta),
+		tone_key_mix_weight(tone_key_mix_weight)
 	{
 	}
 
 	const uint32_t divider;
 	const uint32_t fm_delta;
 	const uint32_t gain_x10;
-	const uint32_t ctcss_phase_inc;
-	const bool ctcss_enabled;
+	const uint32_t tone_key_delta;
+	const float tone_key_mix_weight;
 };
 
 class SigGenConfigMessage : public Message {
